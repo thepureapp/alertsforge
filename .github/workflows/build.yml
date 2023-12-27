@@ -1,0 +1,15 @@
+name: docker build and push
+
+on:
+  push:
+    tags:
+      - "v**"
+
+jobs:
+  tpl-docker-buildx-push:
+    uses: thepureapp/ci-templates/.github/workflows/docker-buildx-cache.yml@main
+    secrets: inherit
+    with:
+      meta_images: ${{ vars.AWS_ECR_REGISTRY }}/alertsforge
+      buildx_context: .
+      buildx_dockerfile: Dockerfile_pure

@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.20 as build
+
+
+ENV GOOS=linux
+ENV GOARCH=amd64
+ENV CGO_ENABLED="0"
+
+COPY . /src
+WORKDIR /src
+
+RUN go build -o /src/alertsforge
+
+# Deploy the application binary into a lean image
+FROM ubuntu:22.04 AS build-release-stage
+
+# Install additional dependencies
+RUN apt-get update && apt-get install --no-install-recommends -qqy \
+        apt-transport-https \
+        bash \
+        ca-certificates \
+        curl \
+        git \
+        gpg-agent \
+        jq \
+        lsb-release \
+        make \
+        nano \
+        openssh-client \
+        openssl \
+        python3-crcmod \
+        python3-dev \
+        software-properties-common \
+        unzip \
+        wget \
+        gnupg && rm -rf /var/lib/apt/lists/*
+
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" &&\
+        unzip awscliv2.zip &&\
+        ./aws/install
+
+
+WORKDIR /app
+
+COPY --from=build /src/alertsforge /app/alertsforge
+
+EXPOSE 8080
+
+RUN useradd -ms /bin/bash app
+USER app
+
+ENTRYPOINT ["/app/alertsforge"]
