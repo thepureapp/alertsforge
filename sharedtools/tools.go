@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"text/template"
@@ -13,6 +14,7 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/dlclark/regexp2"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -52,8 +54,47 @@ func MustTemplateString(tpl string, variables any, onerror string) string {
 	return parsedValue
 }
 
+func (a Alert) RemoveServiceLabels() {
+	for label := range a.Labels {
+		if strings.HasPrefix(label, "__alertsforge_") {
+			delete(a.Labels, label)
+		}
+	}
+}
+
+func RemoveDuplicateFromSlice[T string | int](sliceList []T) []T {
+	allKeys := make(map[T]bool)
+	list := []T{}
+	for _, item := range sliceList {
+		if _, value := allKeys[item]; !value {
+			allKeys[item] = true
+			list = append(list, item)
+		}
+	}
+	return list
+}
+
+func MustGetEnv(variableName string, defaultValue string) string {
+	value := os.Getenv(variableName)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+// ToYaml renders data into YAML string.
+// Used as custom template function.
+func ToYaml(v any) (string, error) {
+	data, err := yaml.Marshal(v)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal %v to YAML: %w", v, err)
+	}
+
+	return string(data), nil
+}
+
 func TemplateString(tpl string, variables any) (string, error) {
-	parsedtemplate, err := template.New("value").Funcs(sprig.FuncMap()).Option("missingkey=error").Parse(tpl)
+	parsedtemplate, err := template.New("value").Funcs(sprig.FuncMap()).Funcs(template.FuncMap{"toYaml": ToYaml}).Option("missingkey=error").Parse(tpl)
 	if err != nil {
 		zap.S().Errorf("template error:", err)
 		return "", err

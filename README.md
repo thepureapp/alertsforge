@@ -1,7 +1,4 @@
 # alertsforge
-magic labels:
-alertsforge_delay_resolve: 20h
-alertsforge_escalation_chain: devops
 
 ***
 
@@ -30,3 +27,22 @@ curl --location 'http://127.0.0.1:8080/alertWebhook/api/v2/alerts' \
             "endsAt": "2024-06-05T19:12:47.047759595Z"
 }
 ]'
+
+magic labels
+__alertsforge_do_not_send_resolved
+alertsforge_delay_resolve
+
+
+Env config variables
+AF_PORT
+AF_CONFIG_PATH
+AF_ONCALL_API_URL
+AF_ONCALL_BEARER
+AF_SLACK_TOKEN
+AF_STORAGE_PATH
+AF_RESINK_TIME
+AF_DEFAULT_RESOLVE_DELAY
+AF_GRAFANA_BEARER
+
+
+

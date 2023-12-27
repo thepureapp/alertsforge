@@ -15,7 +15,9 @@ type Runbook struct {
 type RunbooksConfig struct {
 	EnrichmentFlow []EnrichmentStep `yaml:"enrichment_flow"`
 	OncallMessage  `yaml:"oncall_message"`
+	SlackMessage   `yaml:"slack_message"`
 	Silences       []Silence `yaml:"silenced_alerts"`
+	SinkName       string    `yaml:"sink_name"`
 }
 
 type Silence struct {
@@ -34,6 +36,11 @@ type OncallMessage struct {
 	SimpleMessage   string `yaml:"simple_message,omitempty"`
 	TelegramMessage string `yaml:"telegram_message,omitempty"`
 	EscalationChain string `yaml:"escalation_chain,omitempty"`
+}
+
+type SlackMessage struct {
+	Message string `yaml:"message,omitempty"`
+	Channel string `yaml:"channel,omitempty"`
 }
 
 type Config struct {

@@ -17,12 +17,17 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	DoNotSendResolved = "__alertsforge_do_not_send_resolved"
+)
+
 type AlertManager struct {
 	AlertsBuffer     map[string]*sharedtools.Alert
 	AlertBufferMutex sync.RWMutex
 	AlertSink        alertsink.SinkInterface
 	AlertEnricher    enrichers.EnrichmentInterface
 	runbooks         *config.RunbooksConfig
+	log              *zap.SugaredLogger
 }
 type AlertManagerInterface interface {
 	AlertsProcessor()
@@ -34,14 +39,27 @@ type AlertManagerInterface interface {
 }
 
 func NewAlertManager(runbooks *config.RunbooksConfig) AlertManagerInterface {
-
-	return &AlertManager{
+	ab := &AlertManager{
 		AlertsBuffer:     map[string]*sharedtools.Alert{},
 		AlertBufferMutex: sync.RWMutex{},
 		runbooks:         runbooks,
-		AlertSink:        alertsink.NewAlertSink(alertsink.Oncall, runbooks),
+		AlertSink:        alertsink.NewAlertSink(alertsink.Slack, runbooks),
 		AlertEnricher:    enrichers.NewEnrichment(runbooks),
+		log:              zap.S(),
 	}
+
+	if path := os.Getenv("AF_STORAGE_PATH"); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			ab.log.Errorf("can't read alerts state: %v", err)
+		} else {
+			err := json.Unmarshal(data, &ab.AlertsBuffer)
+			if err != nil {
+				ab.log.Errorf("can't read alerts state: %v", err)
+			}
+		}
+	}
+	return ab
 }
 
 func (a *AlertManager) AlertsProcessor() {
@@ -55,11 +73,11 @@ func (a *AlertManager) AlertsProcessor() {
 
 func (a *AlertManager) ProcessAlertsBufferWebhook(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	log := zap.S()
+
 	body := ""
 	if err := a.ProcessAlertsBuffer(); err != nil {
 		body = fmt.Sprintf("%s", err)
-		log.Errorf("can't process alerts buffer", err)
+		a.log.Errorf("can't process alerts buffer", err)
 	} else {
 		body = "success"
 	}
@@ -76,8 +94,8 @@ func (a *AlertManager) ShowAlertsBufferWebhook(w http.ResponseWriter, r *http.Re
 }
 
 func (a *AlertManager) ProcessAlertsBuffer() []error {
-	log := zap.S()
-	log.Debugf("starting processing of alertsbuffer")
+
+	a.log.Debugf("starting processing of alertsbuffer")
 	AlertsBufferCopy := map[string]sharedtools.Alert{}
 	a.AlertBufferMutex.Lock()
 	for fingerprint, alert := range a.AlertsBuffer {
@@ -88,16 +106,16 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 	var wg sync.WaitGroup
 	sentAlerts := 0
 	errChan := make(chan []error, len(AlertsBufferCopy))
-	alertsToOncall := []sharedtools.Alert{}
-	alertsToOncallMutex := &sync.RWMutex{}
-	log.Debugf("found %d alerts in buffer", len(AlertsBufferCopy))
+	alertsToSend := []sharedtools.Alert{}
+	alertsToSendMutex := &sync.RWMutex{}
+	a.log.Debugf("found %d alerts in buffer", len(AlertsBufferCopy))
 
 	for _, alert := range AlertsBufferCopy {
 		alertCopy := sharedtools.CopyAlert(&alert)
 		if alertCopy.EndsAt.Before(time.Now()) {
-			log.Infof("alert end date before current time, consider it resolved: %v", alertCopy)
+			a.log.Infof("alert end date before current time, consider it resolved: %v", alertCopy)
 			if alertCopy.Status == sharedtools.Pending {
-				log.Warnf("alert was removed before sending it to oncall! : %v", alertCopy)
+				a.log.Warnf("alert was removed before sending it! : %v", alertCopy)
 				a.AlertBufferMutex.Lock()
 				delete(a.AlertsBuffer, alertCopy.Fingerprint)
 				a.AlertBufferMutex.Unlock()
@@ -106,11 +124,13 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					log.Infof("resolving alert: %v", alertCopy)
+					a.log.Infof("resolving alert: %v", alertCopy)
 					alertCopy.Status = sharedtools.Resolved
-					alertsToOncallMutex.Lock()
-					alertsToOncall = append(alertsToOncall, alertCopy)
-					alertsToOncallMutex.Unlock()
+					alertsToSendMutex.Lock()
+					if _, ok := alertCopy.Labels[DoNotSendResolved]; !ok {
+						alertsToSend = append(alertsToSend, alertCopy)
+					}
+					alertsToSendMutex.Unlock()
 				}()
 			}
 
@@ -122,24 +142,24 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				log.Infof("found pending alert, enriching it and sending to oncall: %v", alertCopy)
+				a.log.Infof("found pending alert, enriching it and sending to oncall: %v", alertCopy)
 				errs := a.AlertEnricher.StartEnrichmentFlow(alertCopy)
 				errChan <- errs
 				a.AlertBufferMutex.Lock()
 				a.AlertsBuffer[alertCopy.Fingerprint] = &alertCopy
 				a.AlertBufferMutex.Unlock()
-				alertsToOncallMutex.Lock()
-				alertsToOncall = append(alertsToOncall, alertCopy)
-				alertsToOncallMutex.Unlock()
+				alertsToSendMutex.Lock()
+				alertsToSend = append(alertsToSend, alertCopy)
+				alertsToSendMutex.Unlock()
 			}()
 
 		}
 
 		if resink, err := time.ParseDuration(os.Getenv("AF_RESINK_TIME")); err == nil {
 			if alertCopy.Status == sharedtools.Firing && time.Since(alertCopy.LastSinkAt) > resink {
-				alertsToOncallMutex.Lock()
-				alertsToOncall = append(alertsToOncall, alertCopy)
-				alertsToOncallMutex.Unlock()
+				alertsToSendMutex.Lock()
+				alertsToSend = append(alertsToSend, alertCopy)
+				alertsToSendMutex.Unlock()
 			}
 		}
 
@@ -150,21 +170,21 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 
 	for er := range errChan {
 		for err := range er {
-			log.Errorf("Got error from enrichment: %v", err)
+			a.log.Errorf("Got error from enrichment: %v", err)
 		}
 	}
 
 	errors := []error{}
-	if sentAlerts > 0 {
-		log.Infof("alerts to oncall: %v", alertsToOncall)
-		var accepted, resolved []string
-		accepted, resolved, errors = a.AlertSink.SendAlerts(alertsToOncall)
+	var accepted, resolved []string
+	if len(alertsToSend) > 0 {
+		a.log.Infof("alerts to send: %v", alertsToSend)
+		accepted, resolved, errors = a.AlertSink.SendAlerts(alertsToSend)
 
-		log.Infof("accepted fingerprints: %v", accepted)
-		log.Infof("resolved fingerprints: %v", resolved)
+		a.log.Infof("accepted fingerprints: %v", accepted)
+		a.log.Infof("resolved fingerprints: %v", resolved)
 
 		for _, err := range errors {
-			log.Errorf("error while sending alert to oncall: %s", err)
+			a.log.Errorf("error while sending alert: %s", err)
 		}
 
 		a.AlertBufferMutex.Lock()
@@ -172,50 +192,64 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 
 			if alert, ok := a.AlertsBuffer[fingerprint]; ok {
 				if alert.Status == sharedtools.Firing {
-					log.Infof("fingerprint %s have been resinked", alert.Fingerprint)
+					a.log.Infof("fingerprint %s have been resinked", alert.Fingerprint)
 				} else {
-					log.Infof("changing fingerprint %s with status %s to status firing", alert.Fingerprint, alert.Status)
+					a.log.Infof("changing fingerprint %s with status %s to status firing", alert.Fingerprint, alert.Status)
 					alert.Status = sharedtools.Firing
 				}
 				alert.LastSinkAt = time.Now()
 			}
 		}
 		for _, fingerprint := range resolved {
-			log.Infof("deleting alert with fingerprint %s from buffer", fingerprint)
+			a.log.Infof("deleting alert with fingerprint %s from buffer", fingerprint)
 			delete(a.AlertsBuffer, fingerprint)
 		}
 		a.AlertBufferMutex.Unlock()
-		log.Infof("%d alerts have been sent to Oncall successfully", sentAlerts)
+		a.log.Infof("%d alerts have been sent successfully", sentAlerts)
 
 	}
-	log.Debugf("finished processing of alertsbuffer")
+
+	if len(accepted) > 0 || len(resolved) > 0 {
+		if path := os.Getenv("AF_STORAGE_PATH"); path != "" {
+			a.AlertBufferMutex.Lock()
+			data, err := json.Marshal(a.AlertsBuffer)
+			a.AlertBufferMutex.Unlock()
+			if err != nil {
+				a.log.Errorf("can't save alerts state: %v", err)
+			} else {
+				os.WriteFile(path, data, 0644)
+			}
+		}
+	}
+
+	a.log.Debugf("finished processing of alertsbuffer")
 	return errors
 }
 
 func (a *AlertManager) AlertWebhook(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	log := zap.S()
+
 	alerts := []sharedtools.Alert{}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Errorf("Can't get body", err)
+		a.log.Errorf("Can't get body", err)
 		return
 	}
 
 	if err := json.Unmarshal(body, &alerts); err != nil {
 		asJson(w, http.StatusBadRequest, err.Error())
-		log.Errorf("Can't unmarshal request from alertmanager, body: \n%s", body)
+		a.log.Errorf("Can't unmarshal request from alertmanager, body: \n%s", body)
 		return
 	}
 
 	a.receiveAlerts(alerts)
 
-	log.Debugf("got %d firing alerts from alertsource", len(alerts))
+	a.log.Debugf("got %d firing alerts from alertsource", len(alerts))
 	asJson(w, http.StatusOK, "success")
 }
 
 func (a *AlertManager) receiveAlerts(alerts []sharedtools.Alert) {
-	log := zap.S()
+
 	for _, alert := range alerts {
 		silenced := false
 		alert := alert
@@ -235,7 +269,7 @@ func (a *AlertManager) receiveAlerts(alerts []sharedtools.Alert) {
 			if alertsforge_delay_resolve, ok := alert.Labels["alertsforge_delay_resolve"]; ok {
 				delayDuration, err := time.ParseDuration(alertsforge_delay_resolve)
 				if err != nil {
-					log.Errorf("can't parse delay duration: %s", err)
+					a.log.Errorf("can't parse delay duration: %s", err)
 				} else {
 					alert.Labels["alertsForge_delayed_resolve"] = alert.EndsAt.Add(delayDuration).String()
 					alert.EndsAt = alert.EndsAt.Add(delayDuration)

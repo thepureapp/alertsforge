@@ -11,8 +11,15 @@ type SinkInterface interface {
 
 const (
 	Oncall = "oncall"
+	Slack  = "slack"
 )
 
 func NewAlertSink(sinkName string, runbooks *config.RunbooksConfig) SinkInterface {
+	switch sinkName {
+	case Oncall:
+		return NewOncallSink(runbooks)
+	case Slack:
+		return NewSlackSink(runbooks)
+	}
 	return NewOncallSink(runbooks)
 }

@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/mobalyticshq/alertsforge/alertsource"
 	"github.com/mobalyticshq/alertsforge/config"
+	"github.com/mobalyticshq/alertsforge/sharedtools"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -25,7 +25,7 @@ func main() {
 	}
 
 	configLoader := config.Config{}
-	runbooks, err := configLoader.LoadRunbooksConfig("./config/runbooks.yaml")
+	runbooks, err := configLoader.LoadRunbooksConfig(sharedtools.MustGetEnv("AF_CONFIG_PATH", "./config/runbooks.yaml"))
 	if err != nil {
 		log.Fatalf("error during structure loading: %v", err)
 	}
@@ -36,10 +36,7 @@ func main() {
 	http.HandleFunc("/showAlertBuffer", am.ShowAlertsBufferWebhook)
 
 	go am.AlertsProcessor()
-	listenAddress := ":8080"
-	if os.Getenv("PORT") != "" {
-		listenAddress = ":" + os.Getenv("PORT")
-	}
+	listenAddress := ":" + sharedtools.MustGetEnv("AF_PORT", "8080")
 
 	log.Info("listening on: ", listenAddress)
 	log.Fatal(http.ListenAndServe(listenAddress, nil))
