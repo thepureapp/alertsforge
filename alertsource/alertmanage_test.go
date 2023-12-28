@@ -13,6 +13,7 @@ import (
 	"github.com/mobalyticshq/alertsforge/config"
 	"github.com/mobalyticshq/alertsforge/sharedtools"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 type mockSink struct {
@@ -81,6 +82,7 @@ func TestAlertManager_ProcessAlertsBuffer(t *testing.T) {
 		AlertSink:        &mockSink{},
 		AlertEnricher:    &mockEnricher{},
 		runbooks:         &config.RunbooksConfig{},
+		log:              zap.S(),
 	}
 
 	os.Setenv("AF_RESINK_TIME", "30m")
