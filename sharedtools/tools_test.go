@@ -237,6 +237,19 @@ func TestMustTemplateString(t *testing.T) {
 			t.Errorf("Expected 'Hello John, how are you doing?', got %s", result)
 		}
 	})
+
+	t.Run("Test case for a valid template string and variables2", func(t *testing.T) {
+
+		tpl := "{{ .Annotations.description }}\nAlllabels:\n{{ toYaml .Labels}}\n"
+		onerror := "nokey"
+
+		result := MustTemplateString(tpl, variables, onerror)
+
+		if result != "nokey" {
+			t.Errorf("Expected '\nAlllabels:\n', got %s", result)
+		}
+	})
+
 	t.Run("Test case for an invalid template string and a default value on error", func(t *testing.T) {
 		tpl := "Hello {{.NonexistentField}}, how are you doing?"
 		onerror := "Uh oh, something went wrong."

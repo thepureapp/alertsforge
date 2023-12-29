@@ -66,7 +66,7 @@ func (a *AlertManager) AlertsProcessor() {
 	for range time.Tick(time.Second * 10) {
 		errs := a.ProcessAlertsBuffer()
 		if len(errs) > 0 {
-			zap.S().Warnf("buffer processsing was not coompletely successful")
+			zap.S().Warnf("buffer processsing was not completely successful")
 		}
 	}
 }
@@ -184,7 +184,7 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 		a.log.Infof("resolved fingerprints: %v", resolved)
 
 		for _, err := range errors {
-			a.log.Errorf("error while sending alert: %s", err)
+			a.log.Errorf("error while sending alert: %+v", err)
 		}
 
 		a.AlertBufferMutex.Lock()

@@ -94,14 +94,14 @@ func ToYaml(v any) (string, error) {
 }
 
 func TemplateString(tpl string, variables any) (string, error) {
-	parsedtemplate, err := template.New("value").Funcs(sprig.FuncMap()).Funcs(template.FuncMap{"toYaml": ToYaml}).Option("missingkey=error").Parse(tpl)
+	parsedtemplate, err := template.New("value").Funcs(sprig.FuncMap()).Funcs(template.FuncMap{"toYaml": ToYaml}).Option("missingkey=default").Parse(tpl)
 	if err != nil {
 		zap.S().Errorf("template error:", err)
 		return "", err
 	}
 
 	parsedValue := new(bytes.Buffer)
-	if err := parsedtemplate.Execute(parsedValue, variables); err != nil && !strings.Contains(err.Error(), "map has no entry for key") {
+	if err := parsedtemplate.Execute(parsedValue, variables); err != nil {
 		zap.S().Errorf("template error:", err)
 		return "", err
 	}
