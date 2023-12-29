@@ -1,12 +1,17 @@
 package enrichers
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 
 	"cloud.google.com/go/storage"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/mobalyticshq/alertsforge/config"
 	"github.com/mobalyticshq/alertsforge/sharedtools"
 	"go.uber.org/zap"
@@ -28,6 +33,9 @@ const (
 	url                = "url"
 	targetLabel        = "targetLabel"
 	bucket             = "bucket"
+	cloud              = "cloud"
+	gcpCloud           = "gcp"
+	awsCloud           = "aws"
 	promql             = "promql"
 	sourceLabelsPrefix = "sourceLabelsPrefix"
 	targetLabelsPrefix = "targetLabelsPrefix"
@@ -137,7 +145,7 @@ func isEnoughConfigParameters(config map[string]string, mandatory []string) erro
 	return nil
 }
 
-func getBucketWriter(ctx context.Context, bucket, filename string) (*storage.Writer, error) {
+func getGCPBucketWriter(ctx context.Context, bucket, filename string) (*storage.Writer, error) {
 	storageClient, err := storage.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage client: %v", err)
@@ -148,20 +156,59 @@ func getBucketWriter(ctx context.Context, bucket, filename string) (*storage.Wri
 	return w, nil
 }
 
-type bucketWriter struct{}
+func getBucketWriter() bucketWriterInterface {
+	switch sharedtools.MustGetEnv("AF_CLOUD", "") {
+	case gcpCloud:
+		return &GCPBucketWriter{}
+	case awsCloud:
+		return &awsBucketWriter{}
+	default:
+		return &GCPBucketWriter{}
+	}
+}
+
+type GCPBucketWriter struct{}
 type bucketWriterInterface interface {
 	writeToBucket(bucketName, stdOutFilename string, data []byte) error
 }
 
-func (b *bucketWriter) writeToBucket(bucketName, stdOutFilename string, data []byte) error {
+func (b *GCPBucketWriter) writeToBucket(bucketName, stdOutFilename string, data []byte) error {
 	ctx := context.Background()
-	w, err := getBucketWriter(ctx, bucketName, stdOutFilename)
+	w, err := getGCPBucketWriter(ctx, bucketName, stdOutFilename)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
 	w.Write(data)
 	return nil
+}
+
+type awsBucketWriter struct{}
+
+func (b *awsBucketWriter) writeToBucket(bucketName, stdOutFilename string, data []byte) error {
+	ctx := context.Background()
+
+	s3Config := &aws.Config{
+		Region:      aws.String(sharedtools.MustGetEnv("AWS_DEFAULT_REGION", "eu-central-1")),
+		Credentials: credentials.NewEnvCredentials(),
+	}
+	s3Session, err := session.NewSession(s3Config)
+	if err != nil {
+		return err
+	}
+
+	uploader := s3manager.NewUploader(s3Session)
+
+	input := &s3manager.UploadInput{
+		Bucket:      aws.String(bucketName),     // bucket's name
+		Key:         aws.String(stdOutFilename), // files destination location
+		Body:        bytes.NewReader(data),      // content of the file
+		ContentType: aws.String("image/png"),    // content type
+		//		ACL:         aws.String("public-read"),
+	}
+	_, err = uploader.UploadWithContext(ctx, input)
+
+	return err
 }
 
 type fileInterface interface {

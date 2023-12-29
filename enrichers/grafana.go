@@ -18,7 +18,8 @@ type grafanaEnricher struct {
 }
 
 func NewGrafanaEnricher(alertinfo AlertInfo, config map[string]string) *grafanaEnricher {
-	return &grafanaEnricher{alertinfo: alertinfo, config: config, cli: &sharedtools.HTTPClient{}, bucketWriter: &bucketWriter{}}
+
+	return &grafanaEnricher{alertinfo: alertinfo, config: config, cli: &sharedtools.HTTPClient{}, bucketWriter: getBucketWriter()}
 }
 
 func (e *grafanaEnricher) Enrich() (map[string]string, error) {
@@ -53,7 +54,7 @@ func (e *grafanaEnricher) Enrich() (map[string]string, error) {
 
 	zap.S().Debugf("grafana url: %s", req.URL.RawQuery)
 
-	req.Header.Add("Authorization", os.Getenv("AF_GRAFANA_BEARER"))
+	req.Header.Add("Authorization", "Bearer "+os.Getenv("AF_GRAFANA_BEARER"))
 
 	resBody, err := e.cli.FetchResponse(req)
 	if err != nil {
@@ -62,7 +63,11 @@ func (e *grafanaEnricher) Enrich() (map[string]string, error) {
 
 	filename := time.Now().Format("2006-01-02") + "/" + sharedtools.LabelSetToFingerprint(e.alertinfo.Labels) + sharedtools.LabelSetToFingerprint(e.config) + ".png"
 
-	e.bucketWriter.writeToBucket(e.config[bucket], filename, resBody)
+	err = e.bucketWriter.writeToBucket(e.config[bucket], filename, resBody)
+
+	if err != nil {
+		return nil, err
+	}
 
 	return map[string]string{e.config[targetLabel]: filename}, nil
 }

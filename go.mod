@@ -5,8 +5,10 @@ go 1.20
 require (
 	cloud.google.com/go/storage v1.36.0
 	github.com/Masterminds/sprig/v3 v3.2.3
+	github.com/aws/aws-sdk-go v1.49.12
 	github.com/buger/jsonparser v1.1.1
 	github.com/dlclark/regexp2 v1.10.0
+	github.com/slack-go/slack v0.12.3
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848
@@ -36,6 +38,7 @@ require (
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -44,7 +47,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
-	github.com/slack-go/slack v0.12.3 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	go.opencensus.io v0.24.0 // indirect

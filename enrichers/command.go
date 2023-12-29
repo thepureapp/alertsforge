@@ -19,7 +19,7 @@ type CommandEnricherInterface interface {
 }
 
 func NewCommandEnricher(alertinfo AlertInfo, config map[string]string) *commandEnricher {
-	return &commandEnricher{alertinfo: alertinfo, config: config, bucketWriter: &bucketWriter{}}
+	return &commandEnricher{alertinfo: alertinfo, config: config, bucketWriter: getBucketWriter()}
 }
 
 func (c *commandEnricher) Enrich() (map[string]string, error) {
