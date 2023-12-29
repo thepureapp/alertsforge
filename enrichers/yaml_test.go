@@ -64,7 +64,7 @@ func TestEnrich(t *testing.T) {
 				alertinfo:  alertinfo,
 				fileReader: &fileReaderTest{},
 			},
-			want: nil,
+			want: map[string]string{"enriched_label": "<no value>"},
 		},
 		{
 			name: "should return error if target label config parameter is missing",
