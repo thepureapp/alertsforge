@@ -126,11 +126,20 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 					defer wg.Done()
 					a.log.Infof("resolving alert: %v", alertCopy)
 					alertCopy.Status = sharedtools.Resolved
-					alertsToSendMutex.Lock()
 					if _, ok := alertCopy.Labels[DoNotSendResolved]; !ok {
+						if sharedtools.MustGetEnv("AF_ENRICH_RESOLVED", "false") == "true" {
+							a.log.Infof("enriching resolved alert: %v", alertCopy)
+							errs := a.AlertEnricher.StartEnrichmentFlow(alertCopy)
+							errChan <- errs
+							a.AlertBufferMutex.Lock()
+							a.AlertsBuffer[alertCopy.Fingerprint] = &alertCopy
+							a.AlertBufferMutex.Unlock()
+						}
+						alertsToSendMutex.Lock()
 						alertsToSend = append(alertsToSend, alertCopy)
+						alertsToSendMutex.Unlock()
 					}
-					alertsToSendMutex.Unlock()
+
 				}()
 			}
 
@@ -142,7 +151,7 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				a.log.Infof("found pending alert, enriching it and sending to oncall: %v", alertCopy)
+				a.log.Infof("found pending alert, enriching it: %v", alertCopy)
 				errs := a.AlertEnricher.StartEnrichmentFlow(alertCopy)
 				errChan <- errs
 				a.AlertBufferMutex.Lock()
