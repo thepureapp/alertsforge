@@ -1,6 +1,7 @@
 package enrichers
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -94,7 +95,7 @@ func TestCommandEnricher_EnrichToBucket_Success(t *testing.T) {
 
 	result, err := c.Enrich()
 
-	filename := time.Now().Format("2006-01-02") + "/" + sharedtools.LabelSetToFingerprint(c.alertinfo.Labels) + sharedtools.LabelSetToFingerprint(c.config) + "_stdout.txt"
+	filename := time.Now().Format("2006-01-02") + "/" + sharedtools.LabelSetToFingerprint(c.alertinfo.Labels) + sharedtools.LabelSetToFingerprint(c.config) + "_" + fmt.Sprintf("%d", time.Now().Unix()) + "_stdout.txt"
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
 	assert.Equal(t, map[string]string{
@@ -117,7 +118,7 @@ func TestCommandEnricher_EnrichToBucket_Fail(t *testing.T) {
 
 	result, err := c.Enrich()
 
-	filename := time.Now().Format("2006-01-02") + "/" + sharedtools.LabelSetToFingerprint(c.alertinfo.Labels) + sharedtools.LabelSetToFingerprint(c.config) + "_stderr.txt"
+	filename := time.Now().Format("2006-01-02") + "/" + sharedtools.LabelSetToFingerprint(c.alertinfo.Labels) + sharedtools.LabelSetToFingerprint(c.config) + "_" + fmt.Sprintf("%d", time.Now().Unix()) + "_stderr.txt"
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
 	assert.Equal(t, map[string]string{

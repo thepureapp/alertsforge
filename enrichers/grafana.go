@@ -1,6 +1,7 @@
 package enrichers
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -61,7 +62,7 @@ func (e *grafanaEnricher) Enrich() (map[string]string, error) {
 		return nil, err
 	}
 
-	filename := time.Now().Format("2006-01-02") + "/" + sharedtools.LabelSetToFingerprint(e.alertinfo.Labels) + sharedtools.LabelSetToFingerprint(e.config) + ".png"
+	filename := time.Now().Format("2006-01-02") + "/" + sharedtools.LabelSetToFingerprint(e.alertinfo.Labels) + sharedtools.LabelSetToFingerprint(e.config) + "_" + fmt.Sprintf("%d", time.Now().Unix()) + ".png"
 
 	err = e.bucketWriter.writeToBucket(e.config[bucket], filename, resBody)
 

@@ -2,6 +2,7 @@ package enrichers
 
 import (
 	"errors"
+	"fmt"
 	"os/exec"
 	"time"
 
@@ -48,7 +49,7 @@ func (c *commandEnricher) Enrich() (map[string]string, error) {
 
 	if _, ok := c.config[bucket]; ok {
 
-		filenamePrefix := time.Now().Format("2006-01-02") + "/" + sharedtools.LabelSetToFingerprint(c.alertinfo.Labels) + sharedtools.LabelSetToFingerprint(c.config)
+		filenamePrefix := time.Now().Format("2006-01-02") + "/" + sharedtools.LabelSetToFingerprint(c.alertinfo.Labels) + sharedtools.LabelSetToFingerprint(c.config) + "_" + fmt.Sprintf("%d", time.Now().Unix())
 		if len(stdout) > 0 {
 			stdOutFilename := filenamePrefix + "_stdout.txt"
 			err := c.bucketWriter.writeToBucket(c.config[bucket], stdOutFilename, stdout)
