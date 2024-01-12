@@ -280,11 +280,11 @@ func (a *AlertManager) receiveAlerts(alerts []sharedtools.Alert) {
 				if err != nil {
 					a.log.Errorf("can't parse delay duration: %s", err)
 				} else {
-					alert.Labels["alertsForge_delayed_resolve"] = alert.EndsAt.Add(delayDuration).String()
+					alert.Labels["alertsforge_delay_resolve"] = delayDuration.String()
 					alert.EndsAt = alert.EndsAt.Add(delayDuration)
 				}
 			} else if delayDuration, err := time.ParseDuration(os.Getenv("AF_DEFAULT_RESOLVE_DELAY")); err == nil {
-				alert.Labels["alertsForge_delayed_resolve"] = delayDuration.String()
+				alert.Labels["alertsforge_delay_resolve"] = delayDuration.String()
 				alert.EndsAt = alert.EndsAt.Add(delayDuration)
 			}
 			if _, ok := a.AlertsBuffer[alert.Fingerprint]; ok {

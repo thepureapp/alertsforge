@@ -16,7 +16,7 @@ ENV CGO_ENABLED="0"
 COPY . /src
 WORKDIR /src
 
-RUN go build -o /src/alertsForge
+RUN go build -o /src/alertsforge
 
 # Deploy the application binary into a lean image
 FROM ubuntu:22.04 AS build-release-stage
@@ -51,11 +51,11 @@ RUN    gcloud --version && kubectl version --client
 
 WORKDIR /
 
-COPY --from=build /src/alertsForge /alertsForge
+COPY --from=build /src/alertsforge /alertsforge
 
 EXPOSE 8080
 
 RUN useradd -ms /bin/bash app
 USER app
 
-ENTRYPOINT ["/alertsForge"]
+ENTRYPOINT ["/alertsforge"]
