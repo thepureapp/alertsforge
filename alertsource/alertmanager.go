@@ -131,14 +131,14 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 							a.log.Infof("enriching resolved alert: %v", alertCopy)
 							errs := a.AlertEnricher.StartEnrichmentFlow(alertCopy)
 							errChan <- errs
-							a.AlertBufferMutex.Lock()
-							a.AlertsBuffer[alertCopy.Fingerprint] = &alertCopy
-							a.AlertBufferMutex.Unlock()
 						}
 						alertsToSendMutex.Lock()
 						alertsToSend = append(alertsToSend, alertCopy)
 						alertsToSendMutex.Unlock()
 					}
+					a.AlertBufferMutex.Lock()
+					a.AlertsBuffer[alertCopy.Fingerprint] = &alertCopy
+					a.AlertBufferMutex.Unlock()
 
 				}()
 			}
