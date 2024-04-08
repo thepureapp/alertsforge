@@ -8,10 +8,9 @@ import (
 	"os"
 
 	"cloud.google.com/go/storage"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/mobalyticshq/alertsforge/config"
 	"github.com/mobalyticshq/alertsforge/sharedtools"
 	"go.uber.org/zap"
@@ -188,25 +187,19 @@ type awsBucketWriter struct{}
 func (b *awsBucketWriter) writeToBucket(bucketName, stdOutFilename string, data []byte) error {
 	ctx := context.Background()
 
-	s3Config := &aws.Config{
-		Region:      aws.String(sharedtools.MustGetEnv("AWS_DEFAULT_REGION", "eu-central-1")),
-		Credentials: credentials.NewEnvCredentials(),
-	}
-	s3Session, err := session.NewSession(s3Config)
+	cfg, err := awsconfig.LoadDefaultConfig(ctx)
 	if err != nil {
 		return err
 	}
 
-	uploader := s3manager.NewUploader(s3Session)
+	client := s3.NewFromConfig(cfg)
 
-	input := &s3manager.UploadInput{
-		Bucket:      aws.String(bucketName),     // bucket's name
-		Key:         aws.String(stdOutFilename), // files destination location
-		Body:        bytes.NewReader(data),      // content of the file
-		ContentType: aws.String("image/png"),    // content type
-		//		ACL:         aws.String("public-read"),
-	}
-	_, err = uploader.UploadWithContext(ctx, input)
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(bucketName),
+		Key:         aws.String(stdOutFilename),
+		Body:        bytes.NewReader(data),
+		ContentType: aws.String("image/png"),
+	})
 
 	return err
 }
