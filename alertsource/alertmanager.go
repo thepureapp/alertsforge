@@ -137,7 +137,7 @@ func (a *AlertManager) ProcessAlertsBuffer() []error {
 						alertsToSendMutex.Unlock()
 					}
 					a.AlertBufferMutex.Lock()
-					a.AlertsBuffer[alertCopy.Fingerprint] = &alertCopy
+					delete(a.AlertsBuffer, alertCopy.Fingerprint)
 					a.AlertBufferMutex.Unlock()
 
 				}()
